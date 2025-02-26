@@ -1,19 +1,18 @@
 from pyspark.sql import SparkSession
 
-from rainforest.etl.gold.daily_category_metrics import \
-    DailyCategoryMetricsGoldETL
-from rainforest.etl.interface.daily_category_report import \
-    create_daily_category_report_view
+from scd.etl.gold import SCDUserGoldETL
+from scd.etl.interface.scd_user_report import create_scd_users_report_view
 
 
 def run_code(spark):
+    scd_users_metrics = SCDUserGoldETL(spark=spark)
+    # scd_users_metrics = SCDUserGoldETL(spark=spark)
+    scd_users_metrics.run()
+    create_scd_users_report_view(scd_users_metrics.read().curr_data)
     print("=================================")
-    print("Daily Category Report")
+    print("SCD2 Users Report")
     print("=================================")
-    daily_cat_metrics = DailyCategoryMetricsGoldETL(spark=spark)
-    daily_cat_metrics.run()
-    create_daily_category_report_view(daily_cat_metrics.read().curr_data)
-    spark.sql("select * from global_temp.daily_category_report").show()
+    spark.sql("select * from global_temp.scd_users_report").show()
 
 
 if __name__ == "__main__":

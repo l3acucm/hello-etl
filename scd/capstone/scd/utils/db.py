@@ -4,9 +4,9 @@ from pyspark.sql import SparkSession
 
 
 def get_upstream_table(table_name: str, spark: SparkSession):
-    host = os.getenv("UPSTREAM_HOST", "0.tcp.in.ngrok.io")
-    port = os.getenv("UPSTREAM_PORT", "14185")
-    db = os.getenv("UPSTREAM_DATABASE", "helloetl")
+    host = os.getenv("UPSTREAM_HOST", "4.tcp.eu.ngrok.io")
+    port = os.getenv("UPSTREAM_PORT", "19626")
+    db = os.getenv("UPSTREAM_DATABASE", "helloscd")
     jdbc_url = f'jdbc:postgresql://{host}:{port}/{db}'
     connection_properties = {
         "user": os.getenv("UPSTREAM_USERNAME", "postgres"),

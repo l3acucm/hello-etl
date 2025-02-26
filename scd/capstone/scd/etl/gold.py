@@ -2,22 +2,21 @@ from typing import Dict, List, Optional, Type
 
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col
+from scd.utils.base_table import ETLDataSet, TableETL
+from scd.etl.silver import SCDUserSilverETL
 
-from scd.utils.base_table import TableETL, ETLDataSet
-from scd.utils.db import get_upstream_table
 
-
-class SCDUserBronzeETL(TableETL):
+class SCDUserGoldETL(TableETL):
     def __init__(
             self,
             spark: SparkSession,
-            upstream_table_names: Optional[List[Type[TableETL]]] = None,
+            upstream_table_names: Optional[List[Type[TableETL]]] = [SCDUserSilverETL],
             name: str = "user",
             primary_keys: List[str] = ["user_id"],
-            storage_path: str = "s3a://hello-data-terraform-backend/delta/bronze/user",
+            storage_path: str = "s3a://hello-data-terraform-backend/delta/gold/user",
             data_format: str = "delta",
-            database: str = "helloscd",
-            partition_keys: List[str] = ["updated_at"],
+            database: str = "scd",
+            partition_keys: List[str] = [],
             run_upstream: bool = True,
             load_data: bool = True,
     ) -> None:
@@ -35,33 +34,28 @@ class SCDUserBronzeETL(TableETL):
         )
 
     def extract_upstream(self) -> List[ETLDataSet]:
-        # Assuming user data is extracted from a database or other source
-        # and loaded into a DataFrame
-        table_name = "scd_users"
-        user_data = get_upstream_table(table_name, self.spark)
-        # Create an ETLDataSet instance
-        etl_dataset = ETLDataSet(
-            name=self.name,
-            curr_data=user_data,
-            primary_keys=self.primary_keys,
-            storage_path=self.storage_path,
-            data_format=self.data_format,
-            database=self.database,
-            partition_keys=self.partition_keys,
-        )
+        upstream_etl_datasets = []
+        for TableETLClass in self.upstream_table_names:
+            t1 = TableETLClass(
+                spark=self.spark,
+                run_upstream=self.run_upstream,
+                load_data=self.load_data,
+            )
+            if self.run_upstream:
+                t1.run()
+            upstream_etl_datasets.append(t1.read())
 
-        return [etl_dataset]
+        return upstream_etl_datasets
 
     def transform_upstream(
             self, upstream_datasets: List[ETLDataSet]
     ) -> ETLDataSet:
-        extracted_data = upstream_datasets[0].curr_data
-
-        # Nothing to do for bronze stage
-        # Create a new ETLDataSet instance with the extracted data
+        transformed_data = upstream_datasets[0].curr_data
+        # do nothing on gold stage
+        # Create a new ETLDataSet instance with the transformed data
         etl_dataset = ETLDataSet(
             name=self.name,
-            curr_data=extracted_data,
+            curr_data=transformed_data,
             primary_keys=self.primary_keys,
             storage_path=self.storage_path,
             data_format=self.data_format,
@@ -85,20 +79,20 @@ class SCDUserBronzeETL(TableETL):
                 database=self.database,
                 partition_keys=self.partition_keys,
             )
-        # Read the user data from the Delta Lake table
         user_data = (
             self.spark.read.format(self.data_format)
             .load(self.storage_path)
         )
-        # Explicitly select columns
+
         user_data = user_data.select(
             col("id"),
             col("name"),
             col("age"),
-            col("updated_at"),
+            col("start_date"),
+            col("end_date"),
+            col("is_active"),
         )
 
-        # Create an ETLDataSet instance
         etl_dataset = ETLDataSet(
             name=self.name,
             curr_data=user_data,
