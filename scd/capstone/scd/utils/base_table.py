@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Type
-
+import great_expectations as gx
 from pyspark.sql import DataFrame
 
 
@@ -27,17 +27,17 @@ class ETLDataSet:
 class TableETL(ABC):
     @abstractmethod
     def __init__(
-        self,
-        spark,
-        upstream_table_names: Optional[List[Type[TableETL]]],
-        name: str,
-        primary_keys: List[str],
-        storage_path: str,
-        data_format: str,
-        database: str,
-        partition_keys: List[str],
-        run_upstream: bool = True,
-        load_data: bool = True,
+            self,
+            spark,
+            upstream_table_names: Optional[List[Type[TableETL]]],
+            name: str,
+            primary_keys: List[str],
+            storage_path: str,
+            data_format: str,
+            database: str,
+            partition_keys: List[str],
+            run_upstream: bool = True,
+            load_data: bool = True,
     ) -> None:
         self.spark = spark
         self.upstream_table_names = upstream_table_names
@@ -56,7 +56,7 @@ class TableETL(ABC):
 
     @abstractmethod
     def transform_upstream(
-        self, upstream_datasets: List[ETLDataSet]
+            self, upstream_datasets: List[ETLDataSet]
     ) -> ETLDataSet:
         pass
 
@@ -110,6 +110,6 @@ class TableETL(ABC):
 
     @abstractmethod
     def read(
-        self, partition_values: Optional[Dict[str, str]] = None
+            self, partition_values: Optional[Dict[str, str]] = None
     ) -> ETLDataSet:
         pass

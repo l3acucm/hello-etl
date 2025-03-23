@@ -16,7 +16,7 @@ class SCDUserGoldETL(TableETL):
             storage_path: str = "s3a://hello-data-terraform-backend/delta/gold/user",
             data_format: str = "delta",
             database: str = "scd",
-            partition_keys: List[str] = [],
+            partition_keys: List[str] = tuple(),
             run_upstream: bool = True,
             load_data: bool = True,
     ) -> None:

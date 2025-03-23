@@ -1,3 +1,4 @@
+import logging
 from typing import Dict, List, Optional, Type
 
 from pyspark.sql import SparkSession
@@ -7,6 +8,9 @@ from pyspark.sql.types import StringType, IntegerType, BooleanType, StructField,
 from scd.etl.bronze import SCDUserBronzeETL
 from scd.utils.base_table import TableETL, ETLDataSet
 
+logging.basicConfig(level=logging.INFO,format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S')
+logger = logging.getLogger(__name__)
 
 class SCDUserSilverETL(TableETL):
     def __init__(
@@ -69,13 +73,14 @@ class SCDUserSilverETL(TableETL):
         ).mode("overwrite").partitionBy(['id']).save(
             self.storage_path
         )
-        scd2_df = (
-            self.spark.read.format(self.data_format)
-            .load("s3a://hello-data-terraform-backend/delta/gold/user")
-        )
-        # scd2_df = self.read().curr_data
-        print("Delta df before transformation:")
-        scd2_df.show()
+        # scd2_df = (
+        #     self.spark.read.format(self.data_format)
+        #     .load("s3a://hello-data-terraform-backend/delta/gold/user")
+        # )
+        scd2_df = self.read().curr_data
+        scd2_df.explain()
+        scd2_df.count()
+        logger.info("^^^DELTA DF BEFORE TRANFORMING")
         # new scd2 records
         new_records = ((((
                              oltp_df.withColumnRenamed("name", "new_name").withColumnRenamed("age", "new_age").alias(
@@ -94,8 +99,7 @@ class SCDUserSilverETL(TableETL):
                         .drop('updated_at', 'name', 'age'))
                        .withColumnRenamed("new_name", "name")
                        .withColumnRenamed("new_age", "age"))
-        print("new records:")
-        new_records.show()
+
 
         # rename fields to join df with current scd2 df for further fields adjusting
         new_records_to_join = (
@@ -107,7 +111,7 @@ class SCDUserSilverETL(TableETL):
         # to be stored in delta (UNION)
         updated_stored_sc2_df = (
             scd2_df.join(
-                new_records_to_join, 'id', 'left'
+                new_records_to_join.hint("SORT_MERGE"), 'id', 'left'
             ).withColumn(
                 'end_date',
                 when(col('new_start_date').isNotNull(), col('new_start_date')).otherwise(col('end_date'))
@@ -116,10 +120,16 @@ class SCDUserSilverETL(TableETL):
                 when(col('new_start_date').isNotNull(), lit(False)).otherwise(col('is_active'))
             )
         ).drop('new_start_date')
-
+        new_records.explain()
+        new_records.count()
+        logger.info("^^^NEW RECORDS")
+        updated_stored_sc2_df = updated_stored_sc2_df.union(new_records)
+        updated_stored_sc2_df.explain()
+        updated_stored_sc2_df.count()
+        logger.info("^^^NEW DF TO BE STORED IN DELTA")
         etl_dataset = ETLDataSet(
             name=self.name,
-            curr_data=updated_stored_sc2_df.union(new_records),
+            curr_data=updated_stored_sc2_df,
             primary_keys=self.primary_keys,
             storage_path=self.storage_path,
             data_format=self.data_format,
